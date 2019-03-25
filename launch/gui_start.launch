@@ -1,0 +1,6 @@
+
+<launch>
+	<node pkg="gui_node" type="gui_node.py" name="gui_node">
+			 </node>
+
+</launch>
