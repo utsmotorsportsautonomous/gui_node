@@ -127,7 +127,6 @@ class gui_module(object):
             #self.startdriving.publish(True)
             #start driving
 
-
     def display_text(self, line):
         for i, text in enumerate(line):
             self.main_interface.display_text(text, self.text_xpos, (self.text_ypos + (self.text_pos_multiplier*i)), self.font_size)

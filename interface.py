@@ -1,7 +1,6 @@
 import pygame
 import cv2
 import numpy as np
-import imutils
 import thorpy
 
 
@@ -43,20 +42,20 @@ class interface(object):
         self.lane2_enable = False
         self.object_enable = False
         self.finish_enable = False
+        self.acceleration_button = False
+
+        self.acceleration_slider = None
+        self.maxSpeed_slider = None
 
         self.all_stop = False
         self.obstacle_disable = False
         self.color_update_ready = False
         self.exit_run = False
 
-        self.HSV_Lane1_Upper = None
-        self.HSV_Lane2_Upper = None
-        self.HSV_Object_Upper = None
-        self.HSV_Lane1_Lower = None
-        self.HSV_Lane2_Lower = None
-        self.HSV_Object_Lower = None
-        self.HSV_Finish_Upper = None
-        self.HSV_Finish_Lower = None
+
+        self.acceleration_value = 0
+        self.maxSpeed_value =0
+        self.acceleration_enable = False
 
         self.Upper_Canny_Value = None
         self.Lower_Canny_Value = None
@@ -89,83 +88,66 @@ class interface(object):
 
         self.joystick_count = pygame.joystick.get_count()
 
-    def lane1_update(self):
-        self.lane1_enable = True
-        self.lane2_enable = False
-        self.object_enable = False
-        self.finish_enable = False
-
-    def lane2_update(self):
-        self.lane1_enable = False
-        self.lane2_enable = True
-        self.object_enable = False
-        self.finish_enable = False
-
-    def object_update(self):
-        self.lane1_enable = False
-        self.lane2_enable = False
-        self.object_enable = True
-        self.finish_enable = False
-
-    def finish_update(self):
-        self.lane1_enable = False
-        self.lane2_enable = False
-        self.object_enable = False
-        self.finish_enable = True
-
-    def stop_update(self):
-        if self.all_stop:
-            self.all_stop = False
-        else:
-            self.all_stop = True
-
-    def obstacle_update(self):
-        if self.obstacle_disable:
-            self.obstacle_disable = False
-        else:
-            self.obstacle_disable = True
 
     def create_menu(self):
-        self.lane1_button = thorpy.make_button("Lane 1 Color Choice",
-                                               func=self.lane1_update)
 
-        self.lane2_button = thorpy.make_button("Lane 2 Color Choice",
-                                               func=self.lane2_update)
+        self.acceleration_button = thorpy.Checker.make("Computer Controlled Accel")
+        self.acceleration_slider = thorpy.SliderX.make(length=80,
+                                                    limvals=(
+                                                       0,
+                                                       self.slide_limit),
+                                                    text="Acceleration:",
+                                                    type_=int)
 
-        self.object_button = thorpy.make_button("Object Color Choice",
-                                                func=self.object_update)
+        self.maxSpeed_slider = thorpy.SliderX.make(length=80,
+                                                    limvals=(
+                                                       0,
+                                                       self.slide_limit),
+                                                    text="Speed Limit:",
+                                                    type_=int)
 
-        self.finish_button = thorpy.make_button("Finish Line Color Choice",
-                                                func=self.finish_update)
-
-        self.disable_obstacle_button = thorpy.make_button(
-                                               ("Disable Obstacle Detection"),
-                                               func=self.obstacle_update)
-
-        self.stop_button = thorpy.make_button("STOP!!",
-                                              func=self.stop_update)
 
         self.quit_button = thorpy.make_button("Quit",
                                               func=thorpy.functions.quit_func)
 
+
         self.menu_content = thorpy.Box.make(elements=[
-            self.lane1_button,
-            self.lane2_button,
-            self.object_button,
-            self.finish_button,
-            self.disable_obstacle_button,
-            self.stop_button,
+            self.acceleration_button,
+            self.acceleration_slider,
+            self.maxSpeed_slider,
             self.quit_button])
+
+
+        self.menu_slide_reaction = thorpy.Reaction(
+            reacts_to=thorpy.constants.THORPY_EVENT,
+            reac_func=self.react_slider,
+            event_args={"id": thorpy.constants.EVENT_SLIDE},
+            reac_name="slider reaction")
+
+        self.menu_content.add_reaction(self.menu_slide_reaction)
 
         self.menu = thorpy.Menu(self.menu_content)
 
         for element in self.menu.get_population():
             element.surface = self.screen
 
-        self.lane1_update()
         self.menu_content.set_topleft((self.frame_width, 100))
         self.menu_content.blit()
         self.menu_content.update()
+
+    def react_slider(self, event):
+        self.acceleration_value = self.acceleration_slider.get_value()
+        self.maxSpeed_value = self.maxSpeed_slider.get_value()
+
+    def get_accel_enable(self):
+        self.acceleration_enable = self.acceleration_button.get_value()
+        return self.acceleration_enable
+
+    def get_accel_value(self):
+        return self.acceleration_value
+
+    def get_maxaccel_value(self):
+        return self.maxSpeed_value
 
     def get_all_stop(self):
         return self.all_stop
@@ -187,21 +169,21 @@ class interface(object):
         self.screen.blit(self.text_on_screen, (xpos, ypos))
 
     def update_frame(self, cv_image):
-        cv_image = imutils.resize(cv_image, width=min(self.frame_width,
-                                                      cv_image.shape[1]))
+        #cv_image = imutils.resize(cv_image, width=min(self.frame_width,
+                                                      #cv_image.shape[1]))
         self.frame = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
         self.frame = cv2.flip(self.frame, 1)
         self.frame = np.rot90(self.frame)
         self.frame = pygame.surfarray.make_surface(self.frame)
         self.screen.blit(self.frame, (0, 0))
-        #self.menu_content.blit()
-        #self.menu_content.update()
+        self.menu_content.blit()
+        self.menu_content.update()
         pygame.display.update()
 
     def process_events(self):
         pygame.event.pump()
         for event in pygame.event.get():
-            #self.menu.react(event)
+            self.menu.react(event)
             if event.type == pygame.QUIT:
                 self.exit_run = True
 
