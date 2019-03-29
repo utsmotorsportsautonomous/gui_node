@@ -6,6 +6,12 @@ import cv2
 
 import time
 import interface
+import can
+
+def send_one():
+
+
+
 
 def initialize():
 
@@ -14,8 +20,9 @@ def initialize():
     main_interface.init_joystick()
     joystick_count = main_interface.get_joystick_count()
     main_interface.create_menu()
+    bus = can.interface.Bus(bustype='socketcan', channel='can1', bitrate=1000000)
 
-    return (main_interface, joystick_count)
+    return (main_interface, joystick_count, bus)
 
 
 def translate_key_controls(control, up, down, left, right, speed, steering, direction):
@@ -96,6 +103,20 @@ def user_control_loop(window, joystick_enable, speed, steering, control, directi
 
     return (speed, steering, control, direction)
 
+def sendCanMSG(bus, maxSpeed, speed, steering, enable):
+    ACCEL_ID = 0x144
+    msg = can.Message(arbitration_id=ACCEL_ID,
+                      data=[enable, maxSpeed, speed],
+                      is_extended_id=True)
+    print(msg.data)
+    try:
+        bus.send(msg)
+        print("Message sent on {}".format(bus.channel_info))
+    except can.CanError:
+        print("Message NOT sent")
+
+    return
+
 
 def main():
 
@@ -112,7 +133,7 @@ def main():
     display = cv2.imread('doge.jpg')
 
     (main_interface,
-     joystick_count) = initialize()
+     joystick_count, bus) = initialize()
 
     print("Initializing..")
     startTick = 0;
@@ -152,6 +173,7 @@ def main():
             exit()
 
         main_interface.process_events()
+        sendCanMSG(bus=bus, maxSpeed=max_speed, speed=speed, steering=steering, enable=accel_enable)
 
 
 # PYTHON MAIN CALL
