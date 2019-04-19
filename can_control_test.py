@@ -55,6 +55,26 @@ def translate_stick_controls(axis0, axis1, axis2,
     return (speed, steering)
 
 
+from time import sleep
+import serial
+import json
+ser = serial.Serial('COM12', 9600)
+
+def translate_remote_controls():
+
+    ser.write(str.encode(chr('0')))
+    if ser.in_waiting > 0:
+        inputJson = ser.readline() # Read the newest output from the Arduino
+        if inputJson != None and inputJson[0] == 123:
+            jsonEncoded = json.loads(str(inputJson.decode('utf-8')))
+            print(jsonEncoded)
+
+            #print(jsonEncoded["Throttle"])
+
+    sleep(.005)
+
+    return (speed, steering)
+
 def user_control_loop(window, joystick_enable, speed, steering, control, direction):
     axis0 = 0  # Left / Right on left joystick
     # axis1 = 0  # Up / Dpwn on left joystick
@@ -66,9 +86,12 @@ def user_control_loop(window, joystick_enable, speed, steering, control, directi
     right = False
 
     joystick_count = window.get_joystick_count()
-
+    remote_control_connected = True
     if control is True:
         (up, down, left, right, control) = window.get_key_input()
+
+        if remote_control_connected is True:
+
         if joystick_count is not 0 and joystick_enable is True:
             (axis0,
              axis1,
