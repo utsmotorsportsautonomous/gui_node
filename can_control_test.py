@@ -7,6 +7,9 @@ import cv2
 import time
 import interface
 import can
+from time import sleep
+import serial
+import json
 
 
 def initialize():
@@ -21,6 +24,10 @@ def initialize():
     return (main_interface, joystick_count, bus)
 
 
+def initializeSerial():
+    ser = serial.Serial('/dev/ttyUSB0', 9600)
+    return ser
+    
 def translate_key_controls(control, up, down, left, right, speed, steering, direction):
     if(control):
         if(up):
@@ -55,27 +62,24 @@ def translate_stick_controls(axis0, axis1, axis2,
     return (speed, steering)
 
 
-from time import sleep
-import serial
-import json
-ser = serial.Serial('COM12', 9600)
 
-def translate_remote_controls():
 
-    ser.write(str.encode(chr('0')))
+def translate_remote_controls(ser):
+    speed = 0
+    steering = 0
+    ser.write(str.encode(chr(0)))
     if ser.in_waiting > 0:
         inputJson = ser.readline() # Read the newest output from the Arduino
-        if inputJson != None and inputJson[0] == 123:
+        if inputJson != None and inputJson[0] == 123: #123 = '{' ascii code
             jsonEncoded = json.loads(str(inputJson.decode('utf-8')))
-            print(jsonEncoded)
-
-            #print(jsonEncoded["Throttle"])
-
+            #print(jsonEncoded)
+            speed = jsonEncoded["Throttle"]
+            steering = jsonEncoded["Steering"]
     sleep(.005)
-
     return (speed, steering)
 
-def user_control_loop(window, joystick_enable, speed, steering, control, direction):
+def user_control_loop(window, joystick_enable, speed, steering, control, direction, 
+		      radio_control, serial_connection):
     axis0 = 0  # Left / Right on left joystick
     # axis1 = 0  # Up / Dpwn on left joystick
     axis2 = 0  # R2 / L2 L2 is positive, R2 is negative.
@@ -86,13 +90,15 @@ def user_control_loop(window, joystick_enable, speed, steering, control, directi
     right = False
 
     joystick_count = window.get_joystick_count()
-    remote_control_connected = True
+
+
     if control is True:
         (up, down, left, right, control) = window.get_key_input()
 
-        if remote_control_connected is True:
-
-        if joystick_count is not 0 and joystick_enable is True:
+        if radio_control is True:
+	    (spped, steering) = translate_remote_controls(serial_connection)
+	
+        elif joystick_count is not 0 and joystick_enable is True:
             (axis0,
              axis1,
              axis2,
@@ -150,6 +156,9 @@ def main():
     # buttonY = 0 # Y Button
     main_interface = None
     display = cv2.imread('doge.jpg')
+    radio_control = True;
+    if(radio_control is True):
+        serial_connection = initializeSerial()
 
     (main_interface,
      joystick_count, bus) = initialize()
@@ -174,7 +183,9 @@ def main():
                                         speed=speed,
                                         steering=steering,
                                         control=control,
-                                        direction=direction)
+                                        direction=direction,
+					radio_control=radio_control,
+					serial_connection=serial_connection)
 
         print("The speed is " + str(speed))
         print("The max speed is " + str(max_speed))
