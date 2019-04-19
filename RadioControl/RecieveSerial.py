@@ -2,14 +2,18 @@ from time import sleep
 import serial
 import json
 #ser = serial.Serial('/dev/tty.usbmodem1d11', 9600) # Establish the connection on a specific port
-ser = serial.Serial('COM12', 9600) # Establish the connection on a specific port
+#ser = serial.Serial('COM12', 9600) # Establish the connection on a specific port
+ser = serial.Serial('/dev/ttyUSB0', 9600)
 counter = 32 # Below 32 everything in ASCII is gibberish
 while True:
+     print("Starting Serial Communication")
      counter +=1
-     ser.write(str.encode(chr(counter))) # Convert the decimal number to ASCII then send it to the Arduino
-
+     ser.write(str.encode(chr(0))) 
+     print(ser.readline());
+     print("test")
      if ser.in_waiting > 0:
          inputJson = ser.readline() # Read the newest output from the Arduino
+	 print(inputJson);
          if inputJson != None and inputJson[0] == 123:
              jsonEncoded = json.loads(str(inputJson.decode('utf-8')))
              print(jsonEncoded)

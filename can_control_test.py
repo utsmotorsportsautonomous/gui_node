@@ -8,10 +8,6 @@ import time
 import interface
 import can
 
-def send_one():
-
-
-
 
 def initialize():
 
