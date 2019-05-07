@@ -44,8 +44,30 @@ def log(speed, steering, control, direction,
     dataframe = dataframe.append(df_temp)
     return dataframe
 
-def save_log(dataframe, filename):
+def saveLog(dataframe, filename):
     dataframe.to_excel(filename, sheet_name='Autonomous Testing')
+    # dataframe.to_csv("testing_log.csv", encoding='utf-8', index=False)
+
+def initializeCanLogging():
+    dataframe = pd.DataFrame()
+    return dataframe
+
+def logCan(bus, dataframe):
+
+    time = datetime.datetime.utcnow()
+    try:
+        msg = bus.recv(1)
+        if msg is not None:
+            data = [[msg.arbitration_id, msg.data, msg.dlc,time]]
+            df_temp = pd.DataFrame(data, columns=["Arbitration ID", "Data","Time Stamp"])
+            dataframe = dataframe.append(df_temp)
+    except KeyboardInterrupt:
+        pass
+
+    return dataframe
+
+def saveCanLog(dataframe, filename):
+    dataframe.to_excel(filename, sheet_name='Autonomous Testing - Can Bus')
     # dataframe.to_csv("testing_log.csv", encoding='utf-8', index=False)
 
 def initializeSerial():
@@ -130,7 +152,8 @@ def sendCanSteeringMSG(bus, steering, enable):
     return
 
 def main():
-    filename = "testing_log" + str(datetime.datetime.now()) + ".xls"
+    filename = "/log_data/testing_log" + str(datetime.datetime.now()) + ".xls"
+    filename_can = "/log_data/can_testing_log" + str(datetime.datetime.now()) + ".xls"
     joystick_enable = False
     control = True
     mode = 0;
@@ -140,13 +163,22 @@ def main():
     steering = 0
     accel_enable = False
     log_enable = True
+    can_log_enable
     radio_control = True
-    log_data = None;
+    log_data = None
+    can_log_data = None
     if(radio_control is True):
         serial_connection = initializeSerial()
 
     (bus0, bus1) = initialize()
-    log_data = initializeLogging()
+
+
+    if log_enable is True:
+        log_data = initializeLogging()
+    if can_log_enable is True:
+        can_log_data = initializeCanLogging()
+
+
     print("Initializing..")
 
     startTick = 0;
@@ -174,13 +206,20 @@ def main():
             if log_enable is True:
                 log_data = log(speed, steering, control, direction,radio_control, serial_connection, log_data)
 
+            if can_log_enable is True:
+                can_log_data = logCan(bus=bus0, can_log_data)
+
+
             max_speed = 64
             sendCanMSG(bus=bus0, maxSpeed=max_speed, speed=speed, steering=steering, enable=mode)#enable_acel
             sendCanSteeringMSG(bus=bus1, steering=steering, enable=mode)
             time.sleep(0.001)
 
     except KeyboardInterrupt:
-        save_log(log_data, filename)
+        if log_enable is True:
+            saveLog(log_data, filename)
+        if can_log_enable is True:
+            saveCanLog(can_log_data, filename_can)
         exit()
 
 
