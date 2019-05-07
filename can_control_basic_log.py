@@ -59,7 +59,7 @@ def logCan(bus, dataframe):
         msg = bus.recv(timeout=0.001)
         if msg is not None:
             data = [[msg.arbitration_id, msg.data, msg.dlc,time]]
-            df_temp = pd.DataFrame(data, columns=["Arbitration ID", "Data","Time Stamp"])
+            df_temp = pd.DataFrame(data, columns=["Arbitration ID", "Data","DLC", "Time Stamp"])
             dataframe = dataframe.append(df_temp)
     except KeyboardInterrupt:
         exit()
@@ -70,18 +70,28 @@ def saveCanLog(dataframe, filename):
     dataframe.to_excel(filename, sheet_name='Autonomous Testing - Can Bus')
     # dataframe.to_csv("testing_log.csv", encoding='utf-8', index=False)
 
-def estop(bus):
-    estop_flag = False
+def estop(bus, estop_flag):
+    
     try:
-        msg = bus.recv()
+        msg = bus.recv(timeout=0.01)
         if msg is not None:
             print("The arbitration id is " + str(msg.arbitration_id))
             print("The message is " + str(msg.data))
             print("The message length is " + str(len(msg)))
+
+            if msg.arbitration_id is 4:
+                print("What is Can 4?")
+                print("The Estop variable at 4 is: " + str(estop_flag))
+                return estop_flag
+
             if msg.arbitration_id is 136: 
-                if msg.data[0] is 0 and len(msg) is 1:
-                    print("E-stop on")
+                if msg.data[0] is 0 and msg.dlc is 4:
                     estop_flag = True
+                elif msg.data[0] is 1 and msg.dlc is 4:
+                    print("E-stop off")
+                    estop_flag = False
+            
+
     except KeyboardInterrupt:
         exit()
     
@@ -179,10 +189,12 @@ def main():
     steering = 0
     accel_enable = False
     log_enable = False
-    can_log_enable = False
+    can_log_enable = True
     radio_control = True
     log_data = None
     can_log_data = None
+    global estop_flag
+    estop_flag = False
     if(radio_control is True):
         serial_connection = initializeSerial()
 
@@ -218,9 +230,12 @@ def main():
             #print("The max speed is " + str(max_speed))
             #print("Is Accel Enabled? " + str(accel_enable))
 
-            #if estop(bus0) is True:
-                #mode = 0
-                #speed = 0
+            estop_flag = estop(bus0, estop_flag) 
+
+            if estop_flag is True:
+                print("E-stop on")
+                mode = 0
+                speed = 0
 
             print("Speed: " + str(speed) + "     Steering: " + str(steering) + "    Mode: " + str(mode))
 
@@ -228,15 +243,13 @@ def main():
                 log_data = log(speed, steering, control, direction,radio_control, serial_connection, log_data)
 
             if can_log_enable is True:
-                can_log_data = logCan(bus0, can_log_data)
-
+                can_log_data = logCan(bus1, can_log_data)
 
             max_speed = 64
 
-            
-
             sendCanMSG(bus=bus1, maxSpeed=max_speed, speed=speed, steering=steering, enable=mode)#enable_acel
             sendCanSteeringMSG(bus=bus0, steering=steering, enable=mode)
+
             time.sleep(0.01)
 
     except KeyboardInterrupt:
