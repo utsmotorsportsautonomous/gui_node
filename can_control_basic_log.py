@@ -56,19 +56,37 @@ def logCan(bus, dataframe):
 
     time = datetime.datetime.utcnow()
     try:
-        msg = bus.recv(1)
+        msg = bus.recv(timeout=0.001)
         if msg is not None:
             data = [[msg.arbitration_id, msg.data, msg.dlc,time]]
             df_temp = pd.DataFrame(data, columns=["Arbitration ID", "Data","Time Stamp"])
             dataframe = dataframe.append(df_temp)
     except KeyboardInterrupt:
-        pass
+        exit()
 
     return dataframe
 
 def saveCanLog(dataframe, filename):
     dataframe.to_excel(filename, sheet_name='Autonomous Testing - Can Bus')
     # dataframe.to_csv("testing_log.csv", encoding='utf-8', index=False)
+
+def estop(bus):
+    estop_flag = False
+    try:
+        msg = bus.recv()
+        if msg is not None:
+            print("The arbitration id is " + str(msg.arbitration_id))
+            print("The message is " + str(msg.data))
+            print("The message length is " + str(len(msg)))
+            if msg.arbitration_id is 136: 
+                if msg.data[0] is 0 and len(msg) is 1:
+                    print("E-stop on")
+                    estop_flag = True
+    except KeyboardInterrupt:
+        exit()
+    
+    return estop_flag
+    
 
 def initializeSerial():
     ser = serial.Serial('/dev/ttyUSB0', 9600)
@@ -115,15 +133,14 @@ def user_control_loop(speed, steering, control, direction,
 
 def sendCanMSG(bus, maxSpeed, speed, steering, enable):
     print("----------Throttle message------------------------------")
-    ACCEL_ID = 0x90
-    #ACCEL_ID = 0x144
+    #ACCEL_ID = 0x90
+    ACCEL_ID = 0x144
     if speed < -0 or speed < 10:
         speed = 0
 
     msg = can.Message(arbitration_id=ACCEL_ID,
                       data=[enable, maxSpeed, speed],
                       is_extended_id=False)
-    print(msg.data)
     try:
         bus.send(msg)
         print("Message sent on {}".format(bus.channel_info))
@@ -142,7 +159,6 @@ def sendCanSteeringMSG(bus, steering, enable):
     msg = can.Message(arbitration_id=STEER_ID,
                       data=[enable, steering],
                       is_extended_id=False)
-    print(msg.data)
     try:
         bus.send(msg)
         print("Message sent on {}".format(bus.channel_info))
@@ -152,8 +168,8 @@ def sendCanSteeringMSG(bus, steering, enable):
     return
 
 def main():
-    filename = "/log_data/testing_log" + str(datetime.datetime.now()) + ".xls"
-    filename_can = "/log_data/can_testing_log" + str(datetime.datetime.now()) + ".xls"
+    filename = "log_data/testing_log" + str(datetime.datetime.now()) + ".xls"
+    filename_can = "log_data/can_testing_log" + str(datetime.datetime.now()) + ".xls"
     joystick_enable = False
     control = True
     mode = 0;
@@ -162,15 +178,15 @@ def main():
     max_speed = 0
     steering = 0
     accel_enable = False
-    log_enable = True
-    can_log_enable
+    log_enable = False
+    can_log_enable = False
     radio_control = True
     log_data = None
     can_log_data = None
     if(radio_control is True):
         serial_connection = initializeSerial()
 
-    (bus0, bus1) = initialize()
+    (bus1, bus0) = initialize()
 
 
     if log_enable is True:
@@ -201,25 +217,35 @@ def main():
             #print("The speed is " + str(speed))
             #print("The max speed is " + str(max_speed))
             #print("Is Accel Enabled? " + str(accel_enable))
+
+            #if estop(bus0) is True:
+                #mode = 0
+                #speed = 0
+
             print("Speed: " + str(speed) + "     Steering: " + str(steering) + "    Mode: " + str(mode))
 
             if log_enable is True:
                 log_data = log(speed, steering, control, direction,radio_control, serial_connection, log_data)
 
             if can_log_enable is True:
-                can_log_data = logCan(bus=bus0, can_log_data)
+                can_log_data = logCan(bus0, can_log_data)
 
 
             max_speed = 64
-            sendCanMSG(bus=bus0, maxSpeed=max_speed, speed=speed, steering=steering, enable=mode)#enable_acel
-            sendCanSteeringMSG(bus=bus1, steering=steering, enable=mode)
-            time.sleep(0.001)
+
+            
+
+            sendCanMSG(bus=bus1, maxSpeed=max_speed, speed=speed, steering=steering, enable=mode)#enable_acel
+            sendCanSteeringMSG(bus=bus0, steering=steering, enable=mode)
+            time.sleep(0.01)
 
     except KeyboardInterrupt:
         if log_enable is True:
             saveLog(log_data, filename)
+
         if can_log_enable is True:
             saveCanLog(can_log_data, filename_can)
+
         exit()
 
 
