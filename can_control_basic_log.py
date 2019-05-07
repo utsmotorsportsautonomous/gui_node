@@ -44,7 +44,7 @@ def log(speed, steering, control, direction,
     dataframe = dataframe.append(df_temp)
     return dataframe
 
-def save_log(dataframe, filename): 
+def save_log(dataframe, filename):
     dataframe.to_excel(filename, sheet_name='Autonomous Testing')
     # dataframe.to_csv("testing_log.csv", encoding='utf-8', index=False)
 
@@ -95,7 +95,7 @@ def sendCanMSG(bus, maxSpeed, speed, steering, enable):
     print("----------Throttle message------------------------------")
     ACCEL_ID = 0x90
     #ACCEL_ID = 0x144
-    if speed < -0:
+    if speed < -0 or speed < 10:
         speed = 0
 
     msg = can.Message(arbitration_id=ACCEL_ID,
@@ -148,7 +148,7 @@ def main():
     (bus0, bus1) = initialize()
     log_data = initializeLogging()
     print("Initializing..")
-    
+
     startTick = 0;
     reverseTick = 0;
     try:
@@ -178,7 +178,7 @@ def main():
             sendCanMSG(bus=bus0, maxSpeed=max_speed, speed=speed, steering=steering, enable=mode)#enable_acel
             sendCanSteeringMSG(bus=bus1, steering=steering, enable=mode)
             time.sleep(0.001)
-    
+
     except KeyboardInterrupt:
         save_log(log_data, filename)
         exit()
