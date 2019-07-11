@@ -9,9 +9,6 @@ import can
 from time import sleep
 import serial
 import json
-import pandas as pd
-import datetime
-import cv2
 
 
 def initialize():
@@ -20,29 +17,6 @@ def initialize():
 
     return (bus0, bus1)
 
-def initializeLogging():
-    dataframe = pd.DataFrame()
-    return dataframe
-
-def log(speed, steering, control, direction,
-		      radio_control, serial_connection, dataframe):
-
-    time = datetime.datetime.utcnow()
-
-    data = [[speed, steering, control, direction,
-             radiocontrol, serial_connection,time]]
-
-    df_temp = pd.DataFrame(data, columns=["Speed", "Steering",
-              "Control Enabled","Direction", "Radio Enabled",
-              "Serial Active","Time Stamp"])
-
-    dataframe = dataframe.append(df_temp)
-    return dataframe
-
-def save_log(dataframe):
-    dataframe.to_excel('testing_log.xls', sheet_name='Autonomous Testing')
-    # dataframe.to_csv("testing_log.csv", encoding='utf-8', index=False)
-    return dataframe
 
 def initializeSerial():
     ser = serial.Serial('/dev/ttyUSB0', 9600)
@@ -68,7 +42,7 @@ def translate_remote_controls(ser):
 
     return (speed, steering, mode)
 
-def user_control_loop(speed, steering, control, direction,
+def user_control_loop(speed, steering, control, direction, 
 		      radio_control, serial_connection):
     mode = 0
     axis0 = 0  # Left / Right on left joystick
@@ -83,7 +57,7 @@ def user_control_loop(speed, steering, control, direction,
     if control is True:
         if radio_control is True:
             (speed, steering, mode) = translate_remote_controls(serial_connection)
-
+    
 
     return (speed, steering, control, direction, mode)
 
@@ -135,14 +109,11 @@ def main():
     max_speed = 0
     steering = 0
     accel_enable = False
-    log_enable = True
-    radio_control = True
-    log_data = None;
+    radio_control = True;
     if(radio_control is True):
         serial_connection = initializeSerial()
 
     (bus0, bus1) = initialize()
-    log_data = initializeLogging()
     print("Initializing..")
     startTick = 0;
     reverseTick = 0;
@@ -165,20 +136,10 @@ def main():
         #print("Is Accel Enabled? " + str(accel_enable))
         print("Speed: " + str(speed) + "     Steering: " + str(steering) + "    Mode: " + str(mode))
 
-        if log_enable is True:
-            log(speed, steering, control, direction,
-        		      radio_control, serial_connection, log_data):
-
         max_speed = 127
         sendCanMSG(bus=bus0, maxSpeed=max_speed, speed=speed, steering=steering, enable=mode)#enable_acel
         sendCanSteeringMSG(bus=bus1, steering=steering, enable=mode)
         time.sleep(0.001)
-
-        key = cv2.waitKey(1) & 0xFF
-        if key is ord('q'):
-            break
-
-    save_log(log_data)
 
 # PYTHON MAIN CALL
 if __name__ == "__main__":

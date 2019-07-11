@@ -188,7 +188,7 @@ def main():
     max_speed = 0
     steering = 0
     accel_enable = False
-    log_enable = False
+    log_enable = True
     can_log_enable = True
     radio_control = True
     log_data = None

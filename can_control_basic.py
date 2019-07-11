@@ -25,6 +25,7 @@ def initializeSerial():
 def translate_remote_controls(ser):
     speed = 0
     steering = 0
+    braking=0
     mode = 0
 
     ser.write(str.encode(chr(0)))
@@ -33,16 +34,17 @@ def translate_remote_controls(ser):
         inputJson = ser.readline() # Read the newest output from the Arduino
         if inputJson != None and inputJson[0] == 123: #123 = '{' ascii code
             jsonEncoded = json.loads(str(inputJson.decode('utf-8')))
-            print(jsonEncoded)
+            #print(jsonEncoded)
             speed = jsonEncoded["Throttle"]
             steering = jsonEncoded["Steering"]
+            braking =jsonEncoded["Braking"]
             mode = jsonEncoded["Mode"]
 
-    sleep(.005)
+    sleep(.05)
 
-    return (speed, steering, mode)
+    return (speed, steering, braking, mode)
 
-def user_control_loop(speed, steering, control, direction, 
+def user_control_loop(speed, steering,braking, control, direction, 
 		      radio_control, serial_connection):
     mode = 0
     axis0 = 0  # Left / Right on left joystick
@@ -56,13 +58,13 @@ def user_control_loop(speed, steering, control, direction,
 
     if control is True:
         if radio_control is True:
-            (speed, steering, mode) = translate_remote_controls(serial_connection)
+            (speed, steering,braking, mode) = translate_remote_controls(serial_connection)
     
 
-    return (speed, steering, control, direction, mode)
+    return (speed, steering, braking, control, direction, mode)
 
-def sendCanMSG(bus, maxSpeed, speed, steering, enable):
-    print("----------Throttle message------------------------------")
+def sendCanAcceleratorMSG(bus, maxSpeed, speed, steering, enable):
+    #print("----------Throttle message------------------------------")
     ACCEL_ID = 0x90
     #ACCEL_ID = 0x144
     if speed < -0:
@@ -71,17 +73,17 @@ def sendCanMSG(bus, maxSpeed, speed, steering, enable):
     msg = can.Message(arbitration_id=ACCEL_ID,
                       data=[enable, maxSpeed, speed],
                       is_extended_id=False)
-    print(msg.data)
+    #print(msg.data)
     try:
         bus.send(msg)
-        print("Message sent on {}".format(bus.channel_info))
+        #print("Message sent on {}".format(bus.channel_info))
     except can.CanError:
         print("Message NOT sent")
 
     return
 
 def sendCanSteeringMSG(bus, steering, enable):
-    print("----------Steering message------------------------------")
+    #print("----------Steering message------------------------------")
     STEER_ID = 0x33
     test = hex(STEER_ID)
     if steering < -0:
@@ -90,10 +92,29 @@ def sendCanSteeringMSG(bus, steering, enable):
     msg = can.Message(arbitration_id=STEER_ID,
                       data=[enable, steering],
                       is_extended_id=False)
-    print(msg.data)
+    #print(msg.data)
     try:
         bus.send(msg)
-        print("Message sent on {}".format(bus.channel_info))
+        #print("Message sent on {}".format(bus.channel_info))
+    except can.CanError:
+        print("Message NOT sent")
+
+    return
+
+def sendCanBrakingMSG(bus, braking, enable):
+    #print("----------Steering message------------------------------")
+    BRAKE_ID = 0x35
+    test = hex(BRAKE_ID)
+    if braking < -0:
+       braking = 0
+
+    msg = can.Message(arbitration_id=BRAKE_ID,
+                      data=[enable, braking],
+                      is_extended_id=False)
+    #print(msg.data)
+    try:
+        bus.send(msg)
+        #print("Message sent on {}".format(bus.channel_info))
     except can.CanError:
         print("Message NOT sent")
 
@@ -108,10 +129,10 @@ def main():
     speed = 0
     max_speed = 0
     steering = 0
+    braking=0
     accel_enable = False
-    radio_control = True;
-    if(radio_control is True):
-        serial_connection = initializeSerial()
+    radio_control = True;   
+    serial_connection = initializeSerial()
 
     (bus0, bus1) = initialize()
     print("Initializing..")
@@ -122,10 +143,12 @@ def main():
         start_time = time.time()
         (speed,
          steering,
+	 braking,
          control,
          direction, mode) = user_control_loop(
                                         speed=speed,
                                         steering=steering,
+					braking=braking,
                                         control=control,
                                         direction=direction,
 					radio_control=radio_control,
@@ -134,11 +157,12 @@ def main():
         #print("The speed is " + str(speed))
         #print("The max speed is " + str(max_speed))
         #print("Is Accel Enabled? " + str(accel_enable))
-        print("Speed: " + str(speed) + "     Steering: " + str(steering) + "    Mode: " + str(mode))
+        print("Speed: " + str(speed) + "     Steering: " + str(steering) +  "     Braking: " + str(braking) +"    Mode: " + str(mode))
 
         max_speed = 127
-        sendCanMSG(bus=bus0, maxSpeed=max_speed, speed=speed, steering=steering, enable=mode)#enable_acel
-        sendCanSteeringMSG(bus=bus1, steering=steering, enable=mode)
+        #sendCanAcceleratorMSG(bus=bus0, maxSpeed=max_speed, speed=speed, steering=steering, enable=mode)#enable_acel
+        sendCanSteeringMSG(bus=bus0, steering=steering, enable=mode)
+        sendCanBrakingMSG(bus=bus0, braking=braking, enable=mode)
         time.sleep(0.001)
 
 # PYTHON MAIN CALL
