@@ -40,7 +40,7 @@ def translate_remote_controls(ser):
             braking =jsonEncoded["Braking"]
             mode = jsonEncoded["Mode"]
 
-    sleep(.05)
+    sleep(.005)
 
     return (speed, steering, braking, mode)
 
@@ -120,6 +120,25 @@ def sendCanBrakingMSG(bus, braking, enable):
 
     return
 
+def initEstop(bus):
+    #print("----------Steering message------------------------------")
+    ESTOP_ID = 0x00
+    test = hex(ESTOP_ID)
+    enable = 0x01
+    node_id = 0x00
+
+    msg = can.Message(arbitration_id=ESTOP_ID,
+                      data=[enable, node_id],
+                      is_extended_id=False)
+    #print(msg.data)
+    try:
+        bus.send(msg)
+        #print("Message sent on {}".format(bus.channel_info))
+    except can.CanError:
+        print("Message NOT sent")
+
+    return
+
 def main():
 
     joystick_enable = False
@@ -136,8 +155,9 @@ def main():
 
     (bus0, bus1) = initialize()
     print("Initializing..")
-    startTick = 0;
-    reverseTick = 0;
+    startTick = 0
+    reverseTick = 0
+    initEstop(bus1)
     while True:
         startTick = startTick + 1
         start_time = time.time()
@@ -161,9 +181,9 @@ def main():
 
         max_speed = 127
         #sendCanAcceleratorMSG(bus=bus0, maxSpeed=max_speed, speed=speed, steering=steering, enable=mode)#enable_acel
-        sendCanSteeringMSG(bus=bus0, steering=steering, enable=mode)
-        sendCanBrakingMSG(bus=bus0, braking=braking, enable=mode)
-        time.sleep(0.001)
+        sendCanSteeringMSG(bus=bus1, steering=steering, enable=mode)
+        sendCanBrakingMSG(bus=bus1, braking=braking, enable=mode)
+        time.sleep(0.005)
 
 # PYTHON MAIN CALL
 if __name__ == "__main__":
