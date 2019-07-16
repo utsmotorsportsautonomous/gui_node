@@ -1,8 +1,13 @@
 #--
 # This is can_control_basic but tripped down to just serial and CAN
 #--
+#TODO:
+'''
+1. modify initialize to ros creating publishers and subscribers
+2. modify control message from PYTHONCAN to ros can_msgs
+3. change bus.send() to ros publishers publish
+'''
 import numpy as np
-
 import time
 
 import can
@@ -10,12 +15,14 @@ from time import sleep
 import serial
 import json
 
+import rospy
+from can_msgs.msg import *
 
-def initialize():
-    bus1 = can.interface.Bus(bustype='socketcan', channel='can1', bitrate=1000000)
-    bus0 = can.interface.Bus(bustype='socketcan', channel='can0', bitrate=1000000)
+def initialize_publisher():
+    pub_can0 = rospy.Publisher('can0_', Frame, queue_size=10)
+    pub_can1 = rospy.Publisher('can1_', Frame, queue_size=10)
 
-    return (bus0, bus1)
+    return (can0, can1)
 
 
 def initializeSerial():
@@ -44,7 +51,7 @@ def translate_remote_controls(ser):
 
     return (speed, steering, braking, mode)
 
-def user_control_loop(speed, steering,braking, control, direction, 
+def user_control_loop(speed, steering,braking, control, direction,
 		      radio_control, serial_connection):
     mode = 0
     axis0 = 0  # Left / Right on left joystick
@@ -59,88 +66,81 @@ def user_control_loop(speed, steering,braking, control, direction,
     if control is True:
         if radio_control is True:
             (speed, steering,braking, mode) = translate_remote_controls(serial_connection)
-    
+
 
     return (speed, steering, braking, control, direction, mode)
 
-def sendCanAcceleratorMSG(bus, maxSpeed, speed, steering, enable):
+def sendCanAcceleratorMSG(pub, maxSpeed, speed, steering, enable):
     #print("----------Throttle message------------------------------")
     ACCEL_ID = 0x90
     #ACCEL_ID = 0x144
     if speed < -0:
         speed = 0
 
-    msg = can.Message(arbitration_id=ACCEL_ID,
-                      data=[enable, maxSpeed, speed],
-                      is_extended_id=False)
-    #print(msg.data)
-    try:
-        bus.send(msg)
-        #print("Message sent on {}".format(bus.channel_info))
-    except can.CanError:
-        print("Message NOT sent")
+    msg = Frame(id=ACCEL_ID,
+                is_rtr=False,
+                is_extended_id=False,
+                dlc=3,
+                data=[enable, maxSpeed, speed,0,0,0,0,0])
+
+    pub.publish(msg)
 
     return
 
-def sendCanSteeringMSG(bus, steering, enable):
+def sendCanSteeringMSG(pub, steering, enable):
     #print("----------Steering message------------------------------")
     STEER_ID = 0x33
     test = hex(STEER_ID)
     if steering < -0:
        steering = 0
 
-    msg = can.Message(arbitration_id=STEER_ID,
-                      data=[enable, steering],
-                      is_extended_id=False)
-    #print(msg.data)
-    try:
-        bus.send(msg)
-        #print("Message sent on {}".format(bus.channel_info))
-    except can.CanError:
-        print("Message NOT sent")
+    msg = Frame(id=STEER_ID,
+                is_rtr=False,
+                is_extended_id=False,
+                dlc=3,
+                data=[enable, steering,0,0,0,0,0,0])
+
+    pub.publish(msg)
 
     return
 
-def sendCanBrakingMSG(bus, braking, enable):
+def sendCanBrakingMSG(pub, braking, enable):
     #print("----------Steering message------------------------------")
     BRAKE_ID = 0x35
     test = hex(BRAKE_ID)
     if braking < -0:
        braking = 0
 
-    msg = can.Message(arbitration_id=BRAKE_ID,
-                      data=[enable, braking],
-                      is_extended_id=False)
-    #print(msg.data)
-    try:
-        bus.send(msg)
-        #print("Message sent on {}".format(bus.channel_info))
-    except can.CanError:
-        print("Message NOT sent")
+    msg = Frame(id=BRAKE_ID,
+                is_rtr=False,
+                is_extended_id=False,
+                dlc=3,
+                data=[enable, braking,0,0,0,0,0,0])
+
+    pub.publish(msg)
 
     return
 
-def initEstop(bus):
+def initEstop(pub):
     #print("----------Steering message------------------------------")
     ESTOP_ID = 0x00
     test = hex(ESTOP_ID)
     enable = 0x01
     node_id = 0x00
 
-    msg = can.Message(arbitration_id=ESTOP_ID,
-                      data=[enable, node_id],
-                      is_extended_id=False)
-    #print(msg.data)
-    try:
-        bus.send(msg)
-        #print("Message sent on {}".format(bus.channel_info))
-    except can.CanError:
-        print("Message NOT sent")
+    msg = Frame(id=ESTOP_ID,
+                is_rtr=False,
+                is_extended_id=False,
+                dlc=3,
+                data=[enable, node_id,0,0,0,0,0,0])
+
+    pub.publish(msg)
 
     return
 
 def main():
 
+    #-------------------Initialise variable-------------------#
     joystick_enable = False
     control = True
     mode = 0;
@@ -150,40 +150,48 @@ def main():
     steering = 0
     braking=0
     accel_enable = False
-    radio_control = True;   
+    radio_control = True;
+
+    print("Initializing..")
+    #-------------------Initialise PYTON SERIAL-------------------#
     serial_connection = initializeSerial()
 
-    (bus0, bus1) = initialize()
-    print("Initializing..")
-    startTick = 0
-    reverseTick = 0
-    initEstop(bus1)
-    while True:
-        startTick = startTick + 1
-        start_time = time.time()
+    #-------------------ROS initialisation-------------------#
+    rospy.init_node('Remote RC control node', anonymous=True)
+    rate = rospy.Rate(200) # 10hz
+    (pub_can0, pub_can1) = initialize_publisher()
+
+    # required initialisation for REMOTE EMERGENCY SWITCH BOX
+    initEstop(can1)
+
+    while not rospy.is_shutdown():
         (speed,
          steering,
-	 braking,
+         braking,
          control,
-         direction, mode) = user_control_loop(
-                                        speed=speed,
-                                        steering=steering,
-					braking=braking,
-                                        control=control,
-                                        direction=direction,
-					radio_control=radio_control,
-  					serial_connection=serial_connection)
+         direction,
+         mode) = user_control_loop( speed=speed,
+                                    steering=steering,
+					                braking=braking,
+                                    control=control,
+                                    direction=direction,
+					                radio_control=radio_control,
+  					                serial_connection=serial_connection)
 
+        #-------------------DEBUG-------------------#                            
         #print("The speed is " + str(speed))
         #print("The max speed is " + str(max_speed))
         #print("Is Accel Enabled? " + str(accel_enable))
         print("Speed: " + str(speed) + "     Steering: " + str(steering) +  "     Braking: " + str(braking) +"    Mode: " + str(mode))
 
         max_speed = 127
+        #-------------------CAN 0 control-------------------#
         #sendCanAcceleratorMSG(bus=bus0, maxSpeed=max_speed, speed=speed, steering=steering, enable=mode)#enable_acel
-        sendCanSteeringMSG(bus=bus1, steering=steering, enable=mode)
-        sendCanBrakingMSG(bus=bus1, braking=braking, enable=mode)
-        time.sleep(0.005)
+
+        #-------------------CAN 1 control-------------------#
+        sendCanSteeringMSG(pub=pub_can1, steering=steering, enable=mode)
+        sendCanBrakingMSG(pub=pub_can1, braking=braking, enable=mode)
+        rate.sleep()
 
 # PYTHON MAIN CALL
 if __name__ == "__main__":
