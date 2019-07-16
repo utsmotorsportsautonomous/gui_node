@@ -39,6 +39,12 @@ def translate_remote_controls(ser):
             steering = jsonEncoded["Steering"]
             braking =jsonEncoded["Braking"]
             mode = jsonEncoded["Mode"]
+            
+            if braking > 133:
+                speed = braking
+                braking = 133
+            elif braking < 133:
+                speed = 0
 
     sleep(.005)
 
@@ -65,9 +71,9 @@ def user_control_loop(speed, steering,braking, control, direction,
 
 def sendCanAcceleratorMSG(bus, maxSpeed, speed, steering, enable):
     #print("----------Throttle message------------------------------")
-    ACCEL_ID = 0x90
+    ACCEL_ID = 0x144
     #ACCEL_ID = 0x144
-    if speed < -0:
+    if speed < 0:
         speed = 0
 
     msg = can.Message(arbitration_id=ACCEL_ID,
@@ -180,7 +186,7 @@ def main():
         print("Speed: " + str(speed) + "     Steering: " + str(steering) +  "     Braking: " + str(braking) +"    Mode: " + str(mode))
 
         max_speed = 127
-        #sendCanAcceleratorMSG(bus=bus0, maxSpeed=max_speed, speed=speed, steering=steering, enable=mode)#enable_acel
+        sendCanAcceleratorMSG(bus=bus0, maxSpeed=max_speed, speed=speed, steering=steering, enable=mode)#enable_acel
         sendCanSteeringMSG(bus=bus1, steering=steering, enable=mode)
         sendCanBrakingMSG(bus=bus1, braking=braking, enable=mode)
         time.sleep(0.005)
