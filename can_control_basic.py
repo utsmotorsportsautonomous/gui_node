@@ -40,10 +40,10 @@ def translate_remote_controls(ser):
             braking =jsonEncoded["Braking"]
             mode = jsonEncoded["Mode"]
             
-            if braking > 127:
+            if braking > 128:
                 speed = braking
                 braking = 127
-            elif braking < 125:
+            elif braking < 128:
                 speed = 0
 
     sleep(.005)
